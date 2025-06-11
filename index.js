@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-mongoose.connect("mongodb://localhost:27017/redbutton", {
+mongoose.connect("mongodb+srv://uzwebcoder:40g948sa@cluster0.f4o0m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
