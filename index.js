@@ -69,9 +69,13 @@ app.post("/messages", async (req, res) => {
     await newMessage.save();
     console.log("Yangi xabar qo‘shildi:", newMessage);
 
-    // Send push notifications to all users
+    // Send push notifications to inactive users
     try {
-      const users = await User.find({ pushToken: { $exists: true } });
+      const activeThreshold = new Date(Date.now() - 30 * 1000); // 30 seconds ago
+      const users = await User.find({
+        pushToken: { $exists: true },
+        lastActive: { $lt: activeThreshold },
+      });
       const messages = users.map((user) => ({
         to: user.pushToken,
         sound: "default",
@@ -234,7 +238,7 @@ app.delete("/messages/:id", async (req, res) => {
 // POST save user ID and push token
 app.post("/userId", async (req, res) => {
   const { userId, pushToken } = req.body;
-  console.log("POST /userId request:", { userId, pushToken }); // Debug log
+  console.log("POST /userId request:", { userId, pushToken });
   try {
     if (!userId) {
       console.warn("userId kiritilmagan:", req.body);
@@ -264,11 +268,33 @@ app.post("/userId", async (req, res) => {
   }
 });
 
+// POST update user activity
+app.post("/user-activity", async (req, res) => {
+  const { userId } = req.body;
+  console.log("POST /user-activity request:", { userId });
+  try {
+    if (!userId) {
+      console.warn("userId kiritilmagan:", req.body);
+      return res.status(400).json({ message: "userId kiritish shart!" });
+    }
+    await User.findOneAndUpdate(
+      { userId },
+      { lastActive: new Date() },
+      { upsert: false }
+    );
+    res.status(200).json({ message: "Faoliyat yangilandi!" });
+    console.log("Foydalanuvchi faoliyati saqlandi:", { userId });
+  } catch (error) {
+    console.error("Faoliyat yangilashda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Faoliyat yangilashda xato yuz berdi!" });
+  }
+});
+
 // POST save user state
 app.post("/user-state", async (req, res) => {
   const { userId, currentIndex, pressCount } = req.body;
   try {
-    console.log("POST /user-state:", { userId, currentIndex, pressCount }); // Debug
+    console.log("POST /user-state:", { userId, currentIndex, pressCount });
     if (!userId || currentIndex === undefined || pressCount === undefined) {
       console.warn("Invalid user-state data:", req.body);
       return res.status(400).json({ message: "Barcha maydonlarni to‘ldiring!" });
@@ -329,12 +355,17 @@ app.get("/stats", async (req, res) => {
 app.post("/send-push", async (req, res) => {
   const { title, body } = req.body;
   try {
-    console.log("POST /send-push:", { title, body }); // Debug
+    console.log("POST /send-push:", { title, body });
     if (!title || !body) {
       return res.status(400).json({ message: "Sarlavha va matn kiritish shart!" });
     }
 
-    const users = await User.find({ pushToken: { $exists: true } });
+    // Only send to users inactive for > 30 seconds
+    const activeThreshold = new Date(Date.now() - 30 * 1000);
+    const users = await User.find({
+      pushToken: { $exists: true },
+      lastActive: { $lt: activeThreshold },
+    });
     const messages = users.map((user) => ({
       to: user.pushToken,
       sound: "default",
@@ -369,4 +400,4 @@ app.listen(3000, () => {
   console.log("Server 3000-portda ishlamoqda!");
 });
 
-module.exports = app; // For Vercel serverless
+module.exports = app;
