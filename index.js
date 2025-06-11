@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const axios = require("axios");
 const app = express();
 
 app.use(express.json());
@@ -18,7 +19,7 @@ const messageSchema = new mongoose.Schema({
   id: Number,
   text: String,
   maxPressCount: Number,
-  specialText: [
+  specialTexts: [
     {
       id: Number,
       text: String,
@@ -28,12 +29,13 @@ const messageSchema = new mongoose.Schema({
   ],
 });
 
-// User Schema for tracking user state
+// User Schema for tracking user state and push tokens
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   currentIndex: { type: Number, default: 0 },
   pressCount: { type: Number, default: 0 },
   lastActive: { type: Date, default: Date.now },
+  pushToken: { type: String },
 });
 
 const Message = mongoose.model("Message", messageSchema);
@@ -50,7 +52,7 @@ app.get("/messages", async (req, res) => {
   }
 });
 
-// POST new message
+// POST new message and send push notifications
 app.post("/messages", async (req, res) => {
   const { text } = req.body;
   try {
@@ -62,11 +64,43 @@ app.post("/messages", async (req, res) => {
       id: messagesCount + 1,
       text,
       maxPressCount: 0,
-      specialText: [],
+      specialTexts: [],
     });
     await newMessage.save();
-    res.status(201).json(newMessage);
     console.log("Yangi xabar qo‘shildi:", newMessage);
+
+    // Send push notifications to all users
+    try {
+      const users = await User.find({ pushToken: { $exists: true } });
+      const messages = users.map((user) => ({
+        to: user.pushToken,
+        sound: "default",
+        title: "Yangi Xabar! 😜",
+        body: `Qizil Tugma’da yangi xabar: ${text}`,
+        data: { messageId: newMessage.id },
+      }));
+
+      // Batch notifications
+      const chunks = [];
+      for (let i = 0; i < messages.length; i += 100) {
+        chunks.push(messages.slice(i, i + 100));
+      }
+
+      for (const chunk of chunks) {
+        await axios.post("https://exp.host/--/api/v2/push/send", chunk, {
+          headers: {
+            Accept: "application/json",
+            "Accept-encoding": "gzip, deflate",
+            "Content-Type": "application/json",
+          },
+        });
+      }
+      console.log("Push xabarnomalar yuborildi:", users.length);
+    } catch (error) {
+      console.error("Push xabarnoma yuborishda xato:", error.message);
+    }
+
+    res.status(201).json(newMessage);
   } catch (error) {
     console.error("Xabar qo‘shishda xato:", error.message);
     res.status(500).json({ message: "Xabar qo‘shishda xato yuz berdi!" });
@@ -182,7 +216,6 @@ app.delete("/messages/:id", async (req, res) => {
   try {
     const message = await Message.findOneAndDelete({ id: parseInt(id) });
     if (message) {
-      // Update IDs of remaining messages
       const remainingMessages = await Message.find({ id: { $gt: parseInt(id) } }).sort({ id: 1 });
       for (let i = 0; i < remainingMessages.length; i++) {
         remainingMessages[i].id = parseInt(id) + i + 1;
@@ -199,9 +232,9 @@ app.delete("/messages/:id", async (req, res) => {
   }
 });
 
-// POST save user ID when entering the game
+// POST save user ID and push token
 app.post("/userId", async (req, res) => {
-  const { userId } = req.body;
+  const { userId, pushToken } = req.body;
   try {
     if (!userId) {
       return res.status(400).json({ message: "userId kiritish shart!" });
@@ -213,9 +246,14 @@ app.post("/userId", async (req, res) => {
         currentIndex: 0,
         pressCount: 0,
         lastActive: new Date(),
+        pushToken,
       });
       await newUser.save();
-      console.log("Yangi foydalanuvchi qo‘shildi:", { userId });
+      console.log("Yangi foydalanuvchi qo‘shildi:", { userId, pushToken });
+    } else if (pushToken) {
+      existingUser.pushToken = pushToken;
+      await existingUser.save();
+      console.log("Push token yangilandi:", { userId, pushToken });
     }
     res.status(200).json({ message: "Foydalanuvchi saqlandi!" });
   } catch (error) {
@@ -261,6 +299,8 @@ app.get("/user-state/:userId", async (req, res) => {
   }
 });
 
+
+
 // GET statistics for dashboard
 app.get("/stats", async (req, res) => {
   try {
@@ -268,18 +308,13 @@ app.get("/stats", async (req, res) => {
     const totalPresses = await User.aggregate([
       { $group: { _id: null, total: { $sum: "$pressCount" } } },
     ]);
-    const messageStats = await User.aggregate([
-      { $group: { _id: "$currentIndex", pressCount: { $sum: "$pressCount" } } },
-    ]);
     res.status(200).json({
       totalUsers,
       totalPresses: totalPresses[0]?.total || 0,
-      messageStats,
     });
-    console.log("Statistika olingan:", { totalUsers, totalPresses: totalPresses[0]?.total || 0 });
   } catch (error) {
-    console.error("Statistika olishda xato:", error.message);
-    res.status(500).json({ message: "Statistika olishda xato yuz berdi!" });
+    console.error("Statistikani olishda xato:", error.message);
+    res.status(500).json({ message: "Statistikani olishda xato yuz berdi!" });
   }
 });
 
