@@ -12,7 +12,7 @@ mongoose.connect("mongodb+srv://uzwebcoder:40g948sa@cluster0.f4o0m.mongodb.net/?
   useNewUrlParser: true,
   useUnifiedTopology: true,
 }).then(() => console.log("MongoDB ulandi!"))
-  .catch((e) => console.error("MongoDB ulanishda xato:", e.message));
+  .catch((e) => console.error("MongoDB ulanishda xato:", e.message, e.stack));
 
 // Message Schema
 const messageSchema = new mongoose.Schema({
@@ -47,7 +47,7 @@ app.get("/messages", async (req, res) => {
     const messages = await Message.find();
     res.status(200).json(messages);
   } catch (error) {
-    console.error("Xabarlarni olishda xato:", error.message);
+    console.error("Xabarlarni olishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Xabarlarni olishda xato yuz berdi!" });
   }
 });
@@ -80,7 +80,6 @@ app.post("/messages", async (req, res) => {
         data: { messageId: newMessage.id },
       }));
 
-      // Batch notifications
       const chunks = [];
       for (let i = 0; i < messages.length; i += 100) {
         chunks.push(messages.slice(i, i + 100));
@@ -97,12 +96,12 @@ app.post("/messages", async (req, res) => {
       }
       console.log("Push xabarnomalar yuborildi:", users.length);
     } catch (error) {
-      console.error("Push xabarnoma yuborishda xato:", error.message);
+      console.error("Push xabarnoma yuborishda xato:", error.message, error.stack);
     }
 
     res.status(201).json(newMessage);
   } catch (error) {
-    console.error("Xabar qo‘shishda xato:", error.message);
+    console.error("Xabar qo‘shishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Xabar qo‘shishda xato yuz berdi!" });
   }
 });
@@ -118,7 +117,7 @@ app.get("/messages/:id", async (req, res) => {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Xabar olishda xato:", error.message);
+    console.error("Xabar olishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Xabar olishda xato yuz berdi!" });
   }
 });
@@ -152,7 +151,7 @@ app.post("/messages/:id/specialText", async (req, res) => {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Maxsus matn qo‘shishda xato:", error.message);
+    console.error("Maxsus matn qo‘shishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Maxsus matn qo‘shishda xato yuz berdi!" });
   }
 });
@@ -183,7 +182,7 @@ app.put("/messages/:id/specialText/:specialTextId", async (req, res) => {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Maxsus matn yangilashda xato:", error.message);
+    console.error("Maxsus matn yangilashda xato:", error.message, error.stack);
     res.status(500).json({ message: "Maxsus matn yangilashda xato yuz berdi!" });
   }
 });
@@ -205,7 +204,7 @@ app.put("/messages/:id", async (req, res) => {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Xabar yangilashda xato:", error.message);
+    console.error("Xabar yangilashda xato:", error.message, error.stack);
     res.status(500).json({ message: "Xabar yangilashda xato yuz berdi!" });
   }
 });
@@ -227,7 +226,7 @@ app.delete("/messages/:id", async (req, res) => {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Xabar o‘chirishda xato:", error.message);
+    console.error("Xabar o‘chirishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Xabar o‘chirishda xato yuz berdi!" });
   }
 });
@@ -235,8 +234,10 @@ app.delete("/messages/:id", async (req, res) => {
 // POST save user ID and push token
 app.post("/userId", async (req, res) => {
   const { userId, pushToken } = req.body;
+  console.log("POST /userId request:", { userId, pushToken }); // Debug log
   try {
     if (!userId) {
+      console.warn("userId kiritilmagan:", req.body);
       return res.status(400).json({ message: "userId kiritish shart!" });
     }
     const existingUser = await User.findOne({ userId });
@@ -252,13 +253,14 @@ app.post("/userId", async (req, res) => {
       console.log("Yangi foydalanuvchi qo‘shildi:", { userId, pushToken });
     } else if (pushToken) {
       existingUser.pushToken = pushToken;
+      existingUser.lastActive = new Date();
       await existingUser.save();
       console.log("Push token yangilandi:", { userId, pushToken });
     }
     res.status(200).json({ message: "Foydalanuvchi saqlandi!" });
   } catch (error) {
-    console.error("Foydalanuvchi qo‘shishda xato:", error.message);
-    res.status(500).json({ message: "Foydalanuvchi qo‘shishda xato yuz berdi!" });
+    console.error("Foydalanuvchi qo‘shishda xato:", error.message, error.stack, { userId, pushToken });
+    res.status(500).json({ message: "Foydalanuvchi qo‘shishda xato yuz berdi!", error: error.message });
   }
 });
 
@@ -266,7 +268,9 @@ app.post("/userId", async (req, res) => {
 app.post("/user-state", async (req, res) => {
   const { userId, currentIndex, pressCount } = req.body;
   try {
+    console.log("POST /user-state:", { userId, currentIndex, pressCount }); // Debug
     if (!userId || currentIndex === undefined || pressCount === undefined) {
+      console.warn("Invalid user-state data:", req.body);
       return res.status(400).json({ message: "Barcha maydonlarni to‘ldiring!" });
     }
     await User.findOneAndUpdate(
@@ -277,7 +281,7 @@ app.post("/user-state", async (req, res) => {
     console.log("Foydalanuvchi holati saqlandi:", { userId, currentIndex, pressCount });
     res.status(200).json({ message: "Foydalanuvchi holati saqlandi!" });
   } catch (error) {
-    console.error("Foydalanuvchi holati saqlashda xato:", error.message);
+    console.error("Foydalanuvchi holati saqlashda xato:", error.message, error.stack);
     res.status(500).json({ message: "Foydalanuvchi holati saqlashda xato yuz berdi!" });
   }
 });
@@ -294,12 +298,10 @@ app.get("/user-state/:userId", async (req, res) => {
       res.status(404).json({ message: "Foydalanuvchi topilmadi!" });
     }
   } catch (error) {
-    console.error("Foydalanuvchi holati olishda xato:", error.message);
+    console.error("Foydalanuvchi holati olishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Foydalanuvchi holati olishda xato yuz berdi!" });
   }
 });
-
-
 
 // GET statistics for dashboard
 app.get("/stats", async (req, res) => {
@@ -308,16 +310,63 @@ app.get("/stats", async (req, res) => {
     const totalPresses = await User.aggregate([
       { $group: { _id: null, total: { $sum: "$pressCount" } } },
     ]);
+    const messageStats = await User.aggregate([
+      { $group: { _id: "$currentIndex", pressCount: { $sum: "$pressCount" } } },
+    ]);
     res.status(200).json({
       totalUsers,
       totalPresses: totalPresses[0]?.total || 0,
+      messageStats,
     });
+    console.log("Statistika olingan:", { totalUsers, totalPresses: totalPresses[0]?.total || 0 });
   } catch (error) {
-    console.error("Statistikani olishda xato:", error.message);
-    res.status(500).json({ message: "Statistikani olishda xato yuz berdi!" });
+    console.error("Statistika olishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Statistika olishda xato yuz berdi!" });
+  }
+});
+
+// POST send manual push notification
+app.post("/send-push", async (req, res) => {
+  const { title, body } = req.body;
+  try {
+    console.log("POST /send-push:", { title, body }); // Debug
+    if (!title || !body) {
+      return res.status(400).json({ message: "Sarlavha va matn kiritish shart!" });
+    }
+
+    const users = await User.find({ pushToken: { $exists: true } });
+    const messages = users.map((user) => ({
+      to: user.pushToken,
+      sound: "default",
+      title,
+      body,
+      data: { custom: true },
+    }));
+
+    const chunks = [];
+    for (let i = 0; i < messages.length; i += 100) {
+      chunks.push(messages.slice(i, i + 100));
+    }
+
+    for (const chunk of chunks) {
+      await axios.post("https://exp.host/--/api/v2/push/send", chunk, {
+        headers: {
+          Accept: "application/json",
+          "Accept-encoding": "gzip, deflate",
+          "Content-Type": "application/json",
+        },
+      });
+    }
+    console.log("Maxsus push xabarnomalar yuborildi:", users.length);
+    res.status(200).json({ message: "Push xabarnomalar yuborildi!" });
+  } catch (error) {
+    console.error("Maxsus push xabarnoma yuborishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Push xabarnoma yuborishda xato yuz berdi!" });
   }
 });
 
 app.listen(3000, () => {
   console.log("Server 3000-portda ishlamoqda!");
 });
+
+module.exports = app; // For Vercel serverless
