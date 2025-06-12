@@ -7,18 +7,20 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// MongoDB connection
+// MongoDB ulanishi
 mongoose.connect("mongodb+srv://uzwebcoder:40g948sa@cluster0.f4o0m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 }).then(() => console.log("MongoDB ulandi!"))
   .catch((e) => console.error("MongoDB ulanishda xato:", e.message, e.stack));
 
-// Message Schema
+// Message sxemasi
 const messageSchema = new mongoose.Schema({
   id: Number,
   text: String,
   maxPressCount: Number,
+  buttonSize: { type: Number, default: 130 }, // Yangi maydon: button razmeri
+  showYellowButton: { type: Boolean, default: false }, // Yangi maydon: sariq tugma ko'rsatiladimi
   specialTexts: [
     {
       id: Number,
@@ -29,7 +31,7 @@ const messageSchema = new mongoose.Schema({
   ],
 });
 
-// User Schema for tracking user state and push tokens
+// User sxemasi
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   currentIndex: { type: Number, default: 0 },
@@ -41,7 +43,7 @@ const userSchema = new mongoose.Schema({
 const Message = mongoose.model("Message", messageSchema);
 const User = mongoose.model("UserState", userSchema);
 
-// GET all messages
+// Barcha xabarlarni olish
 app.get("/messages", async (req, res) => {
   try {
     const messages = await Message.find();
@@ -52,9 +54,9 @@ app.get("/messages", async (req, res) => {
   }
 });
 
-// POST new message and send push notifications
+// Yangi xabar qo'shish va push xabarnoma yuborish
 app.post("/messages", async (req, res) => {
-  const { text } = req.body;
+  const { text, buttonSize, showYellowButton } = req.body;
   try {
     if (!text) {
       return res.status(400).json({ message: "Matn kiritish shart!" });
@@ -64,14 +66,16 @@ app.post("/messages", async (req, res) => {
       id: messagesCount + 1,
       text,
       maxPressCount: 0,
+      buttonSize: buttonSize || 130, // Default razmer
+      showYellowButton: showYellowButton || false, // Default false
       specialTexts: [],
     });
     await newMessage.save();
-    console.log("Yangi xabar qo‘shildi:", newMessage);
+    console.log("Yangi xabar qo'shildi:", newMessage);
 
-    // Send push notifications to inactive users
+    // Faqat 30 soniyadan ko'proq faol bo'lmagan foydalanuvchilarga push xabarnoma
     try {
-      const activeThreshold = new Date(Date.now() - 30 * 1000); // 30 seconds ago
+      const activeThreshold = new Date(Date.now() - 30 * 1000);
       const users = await User.find({
         pushToken: { $exists: true },
         lastActive: { $lt: activeThreshold },
@@ -80,7 +84,7 @@ app.post("/messages", async (req, res) => {
         to: user.pushToken,
         sound: "default",
         title: "Yangi Xabar! 😜",
-        body: `Qizil Tugma’da yangi xabar: ${text}`,
+        body: `Qizil Tugma'da yangi xabar: ${text}`,
         data: { messageId: newMessage.id },
       }));
 
@@ -105,12 +109,12 @@ app.post("/messages", async (req, res) => {
 
     res.status(201).json(newMessage);
   } catch (error) {
-    console.error("Xabar qo‘shishda xato:", error.message, error.stack);
-    res.status(500).json({ message: "Xabar qo‘shishda xato yuz berdi!" });
+    console.error("Xabar qo'shishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Xabar qo'shishda xato yuz berdi!" });
   }
 });
 
-// GET single message by ID
+// Yagona xabarni olish
 app.get("/messages/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -126,7 +130,7 @@ app.get("/messages/:id", async (req, res) => {
   }
 });
 
-// POST special text to a message
+// Maxsus matn qo'shish
 app.post("/messages/:id/specialText", async (req, res) => {
   const { id } = req.params;
   const { specialText, startCount, endCount } = req.body;
@@ -136,7 +140,7 @@ app.post("/messages/:id/specialText", async (req, res) => {
 
     if (message) {
       if (!specialText || startCount === undefined || endCount === undefined) {
-        return res.status(400).json({ message: "Barcha maydonlarni to‘ldiring!" });
+        return res.status(400).json({ message: "Barcha maydonlarni to'ldiring!" });
       }
 
       const specialTextId = message.specialTexts.length + 1;
@@ -150,17 +154,17 @@ app.post("/messages/:id/specialText", async (req, res) => {
 
       await message.save();
       res.status(200).json(message);
-      console.log("Maxsus matn qo‘shildi:", { id, specialText });
+      console.log("Maxsus matn qo'shildi:", { id, specialText });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Maxsus matn qo‘shishda xato:", error.message, error.stack);
-    res.status(500).json({ message: "Maxsus matn qo‘shishda xato yuz berdi!" });
+    console.error("Maxsus matn qo'shishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Maxsus matn qo'shishda xato yuz berdi!" });
   }
 });
 
-// PUT update special text
+// Maxsus matn yangilash
 app.put("/messages/:id/specialText/:specialTextId", async (req, res) => {
   const { id, specialTextId } = req.params;
   const { startCount, endCount, specialText } = req.body;
@@ -191,19 +195,21 @@ app.put("/messages/:id/specialText/:specialTextId", async (req, res) => {
   }
 });
 
-// PUT update message
+// Xabarni yangilash
 app.put("/messages/:id", async (req, res) => {
   const { id } = req.params;
-  const { maxPressCount } = req.body;
+  const { maxPressCount, buttonSize, showYellowButton } = req.body;
 
   try {
     const message = await Message.findOne({ id: parseInt(id) });
 
     if (message) {
       message.maxPressCount = parseInt(maxPressCount) || message.maxPressCount;
+      message.buttonSize = parseInt(buttonSize) || message.buttonSize;
+      message.showYellowButton = showYellowButton !== undefined ? showYellowButton : message.showYellowButton;
       await message.save();
       res.status(200).json(message);
-      console.log("Xabar yangilandi:", { id, maxPressCount });
+      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
@@ -213,29 +219,30 @@ app.put("/messages/:id", async (req, res) => {
   }
 });
 
-// DELETE message
+// Xabarni o'chirish
 app.delete("/messages/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const message = await Message.findOneAndDelete({ id: parseInt(id) });
     if (message) {
-      const remainingMessages = await Message.find({ id: { $gt: parseInt(id) } }).sort({ id: 1 });
+      const remainingMessages = await Message.find({ id: {
+        $gt: parseInt(id) } }).sort({ id: 1 });
       for (let i = 0; i < remainingMessages.length; i++) {
         remainingMessages[i].id = parseInt(id) + i + 1;
         await remainingMessages[i].save();
       }
-      res.status(200).json({ message: "Xabar muvaffaqiyatli o‘chirildi!" });
-      console.log("Xabar o‘chirildi:", { id });
+      res.status(200).json({ message: "Xabar muvaffaqiyatli o'chirildi!" });
+      console.log("Xabar o'chirildi:", { id });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
   } catch (error) {
-    console.error("Xabar o‘chirishda xato:", error.message, error.stack);
-    res.status(500).json({ message: "Xabar o‘chirishda xato yuz berdi!" });
+    console.error("Xabar o'chirishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Xabar o'chirishda xato yuz berdi!" });
   }
 });
 
-// POST save user ID and push token
+// Foydalanuvchi ID va push tokenini saqlash
 app.post("/userId", async (req, res) => {
   const { userId, pushToken } = req.body;
   console.log("POST /userId request:", { userId, pushToken });
@@ -254,7 +261,7 @@ app.post("/userId", async (req, res) => {
         pushToken,
       });
       await newUser.save();
-      console.log("Yangi foydalanuvchi qo‘shildi:", { userId, pushToken });
+      console.log("Yangi foydalanuvchi qo'shildi:", { userId, pushToken });
     } else if (pushToken) {
       existingUser.pushToken = pushToken;
       existingUser.lastActive = new Date();
@@ -263,12 +270,12 @@ app.post("/userId", async (req, res) => {
     }
     res.status(200).json({ message: "Foydalanuvchi saqlandi!" });
   } catch (error) {
-    console.error("Foydalanuvchi qo‘shishda xato:", error.message, error.stack, { userId, pushToken });
-    res.status(500).json({ message: "Foydalanuvchi qo‘shishda xato yuz berdi!", error: error.message });
+    console.error("Foydalanuvchi qo'shishda xato:", error.message, error.stack, { userId, pushToken });
+    res.status(500).json({ message: "Foydalanuvchi qo'shishda xato yuz berdi!", error: error.message });
   }
 });
 
-// POST update user activity
+// Foydalanuvchi faoliyatini yangilash
 app.post("/user-activity", async (req, res) => {
   const { userId } = req.body;
   console.log("POST /user-activity request:", { userId });
@@ -290,14 +297,14 @@ app.post("/user-activity", async (req, res) => {
   }
 });
 
-// POST save user state
+// Foydalanuvchi holatini saqlash
 app.post("/user-state", async (req, res) => {
   const { userId, currentIndex, pressCount } = req.body;
   try {
     console.log("POST /user-state:", { userId, currentIndex, pressCount });
     if (!userId || currentIndex === undefined || pressCount === undefined) {
       console.warn("Invalid user-state data:", req.body);
-      return res.status(400).json({ message: "Barcha maydonlarni to‘ldiring!" });
+      return res.status(400).json({ message: "Barcha maydonlarni to'ldiring!" });
     }
     await User.findOneAndUpdate(
       { userId },
@@ -312,7 +319,7 @@ app.post("/user-state", async (req, res) => {
   }
 });
 
-// GET user state by userId
+// Foydalanuvchi holatini olish
 app.get("/user-state/:userId", async (req, res) => {
   const { userId } = req.params;
   try {
@@ -329,7 +336,7 @@ app.get("/user-state/:userId", async (req, res) => {
   }
 });
 
-// GET statistics for dashboard
+// Statistika olish
 app.get("/stats", async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
@@ -351,7 +358,7 @@ app.get("/stats", async (req, res) => {
   }
 });
 
-// POST send manual push notification
+// Maxsus push xabarnoma yuborish
 app.post("/send-push", async (req, res) => {
   const { title, body } = req.body;
   try {
@@ -360,7 +367,6 @@ app.post("/send-push", async (req, res) => {
       return res.status(400).json({ message: "Sarlavha va matn kiritish shart!" });
     }
 
-    // Only send to users inactive for > 30 seconds
     const activeThreshold = new Date(Date.now() - 30 * 1000);
     const users = await User.find({
       pushToken: { $exists: true },
