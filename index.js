@@ -21,9 +21,10 @@ const messageSchema = new mongoose.Schema({
   maxPressCount: Number,
   buttonSize: { type: Number, default: 130 },
   showYellowButton: { type: Boolean, default: false },
-  showRedButton: { type: Boolean, default: true }, // Yangi: Qizil tugma ko‘rsatish
+  showRedButton: { type: Boolean, default: true },
   buttonCount: { type: Number, default: 1 },
   yellowButtonText: { type: String, default: "Sariq Personaj!" },
+  yellowButtonTexts: [{ type: String }], // Yangi: Sariq tugma uchun bir nechta matnlar
   specialTexts: [
     {
       id: Number,
@@ -41,6 +42,7 @@ const userSchema = new mongoose.Schema({
   pressCount: { type: Number, default: 0 },
   lastActive: { type: Date, default: Date.now },
   pushToken: { type: String },
+  yellowTextIndex: { type: Number, default: 0 }, // Yangi: Sariq tugma matnlarining joriy indeksi
 });
 
 const Message = mongoose.model("Message", messageSchema);
@@ -59,7 +61,7 @@ app.get("/messages", async (req, res) => {
 
 // Yangi xabar qo'shish va push xabarnoma yuborish
 app.post("/messages", async (req, res) => {
-  const { text, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText } = req.body; // Yangi: showRedButton
+  const { text, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText, yellowButtonTexts } = req.body;
   try {
     if (!text) {
       return res.status(400).json({ message: "Matn kiritish shart!" });
@@ -71,9 +73,10 @@ app.post("/messages", async (req, res) => {
       maxPressCount: 0,
       buttonSize: buttonSize || 130,
       showYellowButton: showYellowButton || false,
-      showRedButton: showRedButton !== undefined ? showRedButton : true, // Yangi: showRedButton
+      showRedButton: showRedButton !== undefined ? showRedButton : true,
       buttonCount: buttonCount || 1,
       yellowButtonText: yellowButtonText || "Sariq Personaj!",
+      yellowButtonTexts: yellowButtonTexts || [], // Yangi: yellowButtonTexts
       specialTexts: [],
     });
     await newMessage.save();
@@ -236,7 +239,7 @@ app.delete("/messages/:id/specialText/:specialTextId", async (req, res) => {
 // Xabarni yangilash
 app.put("/messages/:id", async (req, res) => {
   const { id } = req.params;
-  const { maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText } = req.body; // Yangi: showRedButton
+  const { maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText, yellowButtonTexts } = req.body;
 
   try {
     const message = await Message.findOne({ id: parseInt(id) });
@@ -245,12 +248,13 @@ app.put("/messages/:id", async (req, res) => {
       message.maxPressCount = parseInt(maxPressCount) || message.maxPressCount;
       message.buttonSize = parseInt(buttonSize) || message.buttonSize;
       message.showYellowButton = showYellowButton !== undefined ? showYellowButton : message.showYellowButton;
-      message.showRedButton = showRedButton !== undefined ? showRedButton : message.showRedButton; // Yangi: showRedButton
+      message.showRedButton = showRedButton !== undefined ? showRedButton : message.showRedButton;
       message.buttonCount = parseInt(buttonCount) || message.buttonCount;
       message.yellowButtonText = yellowButtonText || message.yellowButtonText;
+      message.yellowButtonTexts = yellowButtonTexts || message.yellowButtonTexts; // Yangi: yellowButtonTexts
       await message.save();
       res.status(200).json(message);
-      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText });
+      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText, yellowButtonTexts });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
@@ -299,6 +303,7 @@ app.post("/userId", async (req, res) => {
         pressCount: 0,
         lastActive: new Date(),
         pushToken,
+        yellowTextIndex: 0, // Yangi: yellowTextIndex
       });
       await newUser.save();
       console.log("Yangi foydalanuvchi qo'shildi:", { userId, pushToken });
@@ -339,19 +344,19 @@ app.post("/user-activity", async (req, res) => {
 
 // Foydalanuvchi holatini saqlash
 app.post("/user-state", async (req, res) => {
-  const { userId, currentIndex, pressCount } = req.body;
+  const { userId, currentIndex, pressCount, yellowTextIndex } = req.body;
   try {
-    console.log("POST /user-state:", { userId, currentIndex, pressCount });
+    console.log("POST /user-state:", { userId, currentIndex, pressCount, yellowTextIndex });
     if (!userId || currentIndex === undefined || pressCount === undefined) {
       console.warn("Invalid user-state data:", req.body);
       return res.status(400).json({ message: "Barcha maydonlarni to'ldiring!" });
     }
     await User.findOneAndUpdate(
       { userId },
-      { currentIndex, pressCount, lastActive: new Date() },
+      { currentIndex, pressCount, yellowTextIndex, lastActive: new Date() },
       { upsert: true }
     );
-    console.log("Foydalanuvchi holati saqlandi:", { userId, currentIndex, pressCount });
+    console.log("Foydalanuvchi holati saqlandi:", { userId, currentIndex, pressCount, yellowTextIndex });
     res.status(200).json({ message: "Foydalanuvchi holati saqlandi!" });
   } catch (error) {
     console.error("Foydalanuvchi holati saqlashda xato:", error.message, error.stack);
