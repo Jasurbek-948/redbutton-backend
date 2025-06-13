@@ -22,9 +22,11 @@ const messageSchema = new mongoose.Schema({
   buttonSize: { type: Number, default: 130 },
   showYellowButton: { type: Boolean, default: false },
   showRedButton: { type: Boolean, default: true },
+  showGreenButton: { type: Boolean, default: false }, // Yangi: Yashil tugma ko'rsatish
   buttonCount: { type: Number, default: 1 },
   yellowButtonText: { type: String, default: "Sariq Personaj!" },
-  yellowButtonTexts: [{ type: String }], // Yangi: Sariq tugma uchun bir nechta matnlar
+  yellowButtonTexts: [{ type: String }],
+  greenButtonTexts: [{ type: String }], // Yangi: Yashil tugma matnlari
   specialTexts: [
     {
       id: Number,
@@ -42,7 +44,8 @@ const userSchema = new mongoose.Schema({
   pressCount: { type: Number, default: 0 },
   lastActive: { type: Date, default: Date.now },
   pushToken: { type: String },
-  yellowTextIndex: { type: Number, default: 0 }, // Yangi: Sariq tugma matnlarining joriy indeksi
+  yellowTextIndex: { type: Number, default: 0 },
+  greenTextIndex: { type: Number, default: 0 }, // Yangi: Yashil tugma matn indeksi
 });
 
 const Message = mongoose.model("Message", messageSchema);
@@ -61,7 +64,7 @@ app.get("/messages", async (req, res) => {
 
 // Yangi xabar qo'shish va push xabarnoma yuborish
 app.post("/messages", async (req, res) => {
-  const { text, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText, yellowButtonTexts } = req.body;
+  const { text, buttonSize, showYellowButton, showRedButton, showGreenButton, buttonCount, yellowButtonText, yellowButtonTexts, greenButtonTexts } = req.body;
   try {
     if (!text) {
       return res.status(400).json({ message: "Matn kiritish shart!" });
@@ -74,9 +77,11 @@ app.post("/messages", async (req, res) => {
       buttonSize: buttonSize || 130,
       showYellowButton: showYellowButton || false,
       showRedButton: showRedButton !== undefined ? showRedButton : true,
+      showGreenButton: showGreenButton || false, // Yangi
       buttonCount: buttonCount || 1,
       yellowButtonText: yellowButtonText || "Sariq Personaj!",
-      yellowButtonTexts: yellowButtonTexts || [], // Yangi: yellowButtonTexts
+      yellowButtonTexts: yellowButtonTexts || [],
+      greenButtonTexts: greenButtonTexts || [], // Yangi
       specialTexts: [],
     });
     await newMessage.save();
@@ -217,7 +222,6 @@ app.delete("/messages/:id/specialText/:specialTextId", async (req, res) => {
       );
       if (specialTextIndex !== -1) {
         message.specialTexts.splice(specialTextIndex, 1);
-        // ID'larni qayta tartiblash
         message.specialTexts.forEach((text, index) => {
           text.id = index + 1;
         });
@@ -239,7 +243,7 @@ app.delete("/messages/:id/specialText/:specialTextId", async (req, res) => {
 // Xabarni yangilash
 app.put("/messages/:id", async (req, res) => {
   const { id } = req.params;
-  const { maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText, yellowButtonTexts } = req.body;
+  const { maxPressCount, buttonSize, showYellowButton, showRedButton, showGreenButton, buttonCount, yellowButtonText, yellowButtonTexts, greenButtonTexts } = req.body;
 
   try {
     const message = await Message.findOne({ id: parseInt(id) });
@@ -249,12 +253,14 @@ app.put("/messages/:id", async (req, res) => {
       message.buttonSize = parseInt(buttonSize) || message.buttonSize;
       message.showYellowButton = showYellowButton !== undefined ? showYellowButton : message.showYellowButton;
       message.showRedButton = showRedButton !== undefined ? showRedButton : message.showRedButton;
+      message.showGreenButton = showGreenButton !== undefined ? showGreenButton : message.showGreenButton; // Yangi
       message.buttonCount = parseInt(buttonCount) || message.buttonCount;
       message.yellowButtonText = yellowButtonText || message.yellowButtonText;
-      message.yellowButtonTexts = yellowButtonTexts || message.yellowButtonTexts; // Yangi: yellowButtonTexts
+      message.yellowButtonTexts = yellowButtonTexts || message.yellowButtonTexts;
+      message.greenButtonTexts = greenButtonTexts || message.greenButtonTexts; // Yangi
       await message.save();
       res.status(200).json(message);
-      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText, yellowButtonTexts });
+      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, showRedButton, showGreenButton, buttonCount, yellowButtonText, yellowButtonTexts, greenButtonTexts });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
@@ -303,7 +309,8 @@ app.post("/userId", async (req, res) => {
         pressCount: 0,
         lastActive: new Date(),
         pushToken,
-        yellowTextIndex: 0, // Yangi: yellowTextIndex
+        yellowTextIndex: 0,
+        greenTextIndex: 0, // Yangi
       });
       await newUser.save();
       console.log("Yangi foydalanuvchi qo'shildi:", { userId, pushToken });
@@ -344,19 +351,19 @@ app.post("/user-activity", async (req, res) => {
 
 // Foydalanuvchi holatini saqlash
 app.post("/user-state", async (req, res) => {
-  const { userId, currentIndex, pressCount, yellowTextIndex } = req.body;
+  const { userId, currentIndex, pressCount, yellowTextIndex, greenTextIndex } = req.body;
   try {
-    console.log("POST /user-state:", { userId, currentIndex, pressCount, yellowTextIndex });
+    console.log("POST /user-state:", { userId, currentIndex, pressCount, yellowTextIndex, greenTextIndex });
     if (!userId || currentIndex === undefined || pressCount === undefined) {
       console.warn("Invalid user-state data:", req.body);
       return res.status(400).json({ message: "Barcha maydonlarni to'ldiring!" });
     }
     await User.findOneAndUpdate(
       { userId },
-      { currentIndex, pressCount, yellowTextIndex, lastActive: new Date() },
+      { currentIndex, pressCount, yellowTextIndex, greenTextIndex, lastActive: new Date() },
       { upsert: true }
     );
-    console.log("Foydalanuvchi holati saqlandi:", { userId, currentIndex, pressCount, yellowTextIndex });
+    console.log("Foydalanuvchi holati saqlandi:", { userId, currentIndex, pressCount, yellowTextIndex, greenTextIndex });
     res.status(200).json({ message: "Foydalanuvchi holati saqlandi!" });
   } catch (error) {
     console.error("Foydalanuvchi holati saqlashda xato:", error.message, error.stack);
