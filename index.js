@@ -19,8 +19,9 @@ const messageSchema = new mongoose.Schema({
   id: Number,
   text: String,
   maxPressCount: Number,
-  buttonSize: { type: Number, default: 130 }, // Yangi maydon: button razmeri
-  showYellowButton: { type: Boolean, default: false }, // Yangi maydon: sariq tugma ko'rsatiladimi
+  buttonSize: { type: Number, default: 130 },
+  showYellowButton: { type: Boolean, default: false },
+  buttonCount: { type: Number, default: 1 }, // Yangi maydon: tugmalar soni
   specialTexts: [
     {
       id: Number,
@@ -56,7 +57,7 @@ app.get("/messages", async (req, res) => {
 
 // Yangi xabar qo'shish va push xabarnoma yuborish
 app.post("/messages", async (req, res) => {
-  const { text, buttonSize, showYellowButton } = req.body;
+  const { text, buttonSize, showYellowButton, buttonCount } = req.body; // Yangi: buttonCount
   try {
     if (!text) {
       return res.status(400).json({ message: "Matn kiritish shart!" });
@@ -66,14 +67,15 @@ app.post("/messages", async (req, res) => {
       id: messagesCount + 1,
       text,
       maxPressCount: 0,
-      buttonSize: buttonSize || 130, // Default razmer
-      showYellowButton: showYellowButton || false, // Default false
+      buttonSize: buttonSize || 130,
+      showYellowButton: showYellowButton || false,
+      buttonCount: buttonCount || 1, // Yangi: buttonCount default 1
       specialTexts: [],
     });
     await newMessage.save();
     console.log("Yangi xabar qo'shildi:", newMessage);
 
-    // Faqat 30 soniyadan ko'proq faol bo'lmagan foydalanuvchilarga push xabarnoma
+    // Push xabarnoma yuborish
     try {
       const activeThreshold = new Date(Date.now() - 30 * 1000);
       const users = await User.find({
@@ -198,7 +200,7 @@ app.put("/messages/:id/specialText/:specialTextId", async (req, res) => {
 // Xabarni yangilash
 app.put("/messages/:id", async (req, res) => {
   const { id } = req.params;
-  const { maxPressCount, buttonSize, showYellowButton } = req.body;
+  const { maxPressCount, buttonSize, showYellowButton, buttonCount } = req.body; // Yangi: buttonCount
 
   try {
     const message = await Message.findOne({ id: parseInt(id) });
@@ -207,9 +209,10 @@ app.put("/messages/:id", async (req, res) => {
       message.maxPressCount = parseInt(maxPressCount) || message.maxPressCount;
       message.buttonSize = parseInt(buttonSize) || message.buttonSize;
       message.showYellowButton = showYellowButton !== undefined ? showYellowButton : message.showYellowButton;
+      message.buttonCount = parseInt(buttonCount) || message.buttonCount; // Yangi: buttonCount
       await message.save();
       res.status(200).json(message);
-      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton });
+      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, buttonCount });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
@@ -225,8 +228,7 @@ app.delete("/messages/:id", async (req, res) => {
   try {
     const message = await Message.findOneAndDelete({ id: parseInt(id) });
     if (message) {
-      const remainingMessages = await Message.find({ id: {
-        $gt: parseInt(id) } }).sort({ id: 1 });
+      const remainingMessages = await Message.find({ id: { $gt: parseInt(id) } }).sort({ id: 1 });
       for (let i = 0; i < remainingMessages.length; i++) {
         remainingMessages[i].id = parseInt(id) + i + 1;
         await remainingMessages[i].save();
