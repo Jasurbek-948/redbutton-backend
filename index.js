@@ -21,7 +21,9 @@ const messageSchema = new mongoose.Schema({
   maxPressCount: Number,
   buttonSize: { type: Number, default: 130 },
   showYellowButton: { type: Boolean, default: false },
-  buttonCount: { type: Number, default: 1 }, // Yangi maydon: tugmalar soni
+  showRedButton: { type: Boolean, default: true }, // Yangi: Qizil tugma ko‘rsatish
+  buttonCount: { type: Number, default: 1 },
+  yellowButtonText: { type: String, default: "Sariq Personaj!" },
   specialTexts: [
     {
       id: Number,
@@ -57,7 +59,7 @@ app.get("/messages", async (req, res) => {
 
 // Yangi xabar qo'shish va push xabarnoma yuborish
 app.post("/messages", async (req, res) => {
-  const { text, buttonSize, showYellowButton, buttonCount } = req.body; // Yangi: buttonCount
+  const { text, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText } = req.body; // Yangi: showRedButton
   try {
     if (!text) {
       return res.status(400).json({ message: "Matn kiritish shart!" });
@@ -69,7 +71,9 @@ app.post("/messages", async (req, res) => {
       maxPressCount: 0,
       buttonSize: buttonSize || 130,
       showYellowButton: showYellowButton || false,
-      buttonCount: buttonCount || 1, // Yangi: buttonCount default 1
+      showRedButton: showRedButton !== undefined ? showRedButton : true, // Yangi: showRedButton
+      buttonCount: buttonCount || 1,
+      yellowButtonText: yellowButtonText || "Sariq Personaj!",
       specialTexts: [],
     });
     await newMessage.save();
@@ -197,10 +201,42 @@ app.put("/messages/:id/specialText/:specialTextId", async (req, res) => {
   }
 });
 
+// Maxsus matn o'chirish
+app.delete("/messages/:id/specialText/:specialTextId", async (req, res) => {
+  const { id, specialTextId } = req.params;
+
+  try {
+    const message = await Message.findOne({ id: parseInt(id) });
+
+    if (message) {
+      const specialTextIndex = message.specialTexts.findIndex(
+        (text) => text.id === parseInt(specialTextId)
+      );
+      if (specialTextIndex !== -1) {
+        message.specialTexts.splice(specialTextIndex, 1);
+        // ID'larni qayta tartiblash
+        message.specialTexts.forEach((text, index) => {
+          text.id = index + 1;
+        });
+        await message.save();
+        res.status(200).json(message);
+        console.log("Maxsus matn o'chirildi:", { id, specialTextId });
+      } else {
+        res.status(404).json({ message: "Maxsus matn topilmadi!" });
+      }
+    } else {
+      res.status(404).json({ message: "Xabar topilmadi!" });
+    }
+  } catch (error) {
+    console.error("Maxsus matn o'chirishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "Maxsus matn o'chirishda xato yuz berdi!" });
+  }
+});
+
 // Xabarni yangilash
 app.put("/messages/:id", async (req, res) => {
   const { id } = req.params;
-  const { maxPressCount, buttonSize, showYellowButton, buttonCount } = req.body; // Yangi: buttonCount
+  const { maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText } = req.body; // Yangi: showRedButton
 
   try {
     const message = await Message.findOne({ id: parseInt(id) });
@@ -209,10 +245,12 @@ app.put("/messages/:id", async (req, res) => {
       message.maxPressCount = parseInt(maxPressCount) || message.maxPressCount;
       message.buttonSize = parseInt(buttonSize) || message.buttonSize;
       message.showYellowButton = showYellowButton !== undefined ? showYellowButton : message.showYellowButton;
-      message.buttonCount = parseInt(buttonCount) || message.buttonCount; // Yangi: buttonCount
+      message.showRedButton = showRedButton !== undefined ? showRedButton : message.showRedButton; // Yangi: showRedButton
+      message.buttonCount = parseInt(buttonCount) || message.buttonCount;
+      message.yellowButtonText = yellowButtonText || message.yellowButtonText;
       await message.save();
       res.status(200).json(message);
-      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, buttonCount });
+      console.log("Xabar yangilandi:", { id, maxPressCount, buttonSize, showYellowButton, showRedButton, buttonCount, yellowButtonText });
     } else {
       res.status(404).json({ message: "Xabar topilmadi!" });
     }
