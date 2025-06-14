@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(cors());
 
 // MongoDB ulanishi
-mongoose.connect("mongodb+srv://uzwebcoder:40g948sa@cluster0.f4o0m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
+mongoose.connect("mongodb+srv://uzwebcoder:40g948_SA@cluster0.f4o0m.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 }).then(() => console.log("MongoDB ulandi!"))
