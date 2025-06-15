@@ -53,13 +53,13 @@ const User = mongoose.model("UserState", userSchema);
 
 // Barcha xabarlarni olish
 app.get("/messages", async (req, res) => {
-  try {
-    const messages = await Message.find();
-    res.status(200).json(messages);
-  } catch (error) {
-    console.error("Xabarlarni olishda xato:", error.message, error.stack);
-    res.status(500).json({ message: "Xabarlarni olishda xato yuz berdi!" });
-  }
+    try {
+        const messages = await Message.find().sort({ id: 1 }); // id bo'yicha tartiblash
+        res.status(200).json(messages);
+    } catch (error) {
+        console.error("Xabarlarni olishda xato:", error.message, error.stack);
+        res.status(500).json({ message: "Xabarlarni olishda xato yuz berdi!" });
+    }
 });
 
 // Yangi xabar qo'shish va push xabarnoma yuborish
