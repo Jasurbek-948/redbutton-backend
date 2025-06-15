@@ -178,6 +178,7 @@ app.post("/messages/:id/specialText", async (req, res) => {
   }
 });
 
+
 // Maxsus matn yangilash
 app.put("/messages/:id/specialText/:specialTextId", async (req, res) => {
   const { id, specialTextId } = req.params;
@@ -451,6 +452,44 @@ app.post("/send-push", async (req, res) => {
   } catch (error) {
     console.error("Maxsus push xabarnoma yuborishda xato:", error.message, error.stack);
     res.status(500).json({ message: "Push xabarnoma yuborishda xato yuz berdi!" });
+  }
+});
+app.put("/messages/:id/change-id", async (req, res) => {
+  const { id } = req.params;
+  const { newId } = req.body;
+
+  try {
+    if (!newId || typeof newId !== "number") {
+      return res.status(400).json({ message: "Yangi ID raqam sifatida kiritilishi shart!" });
+    }
+
+    const message = await Message.findOne({ id: parseInt(id) });
+    if (!message) {
+      return res.status(404).json({ message: "Xabar topilmadi!" });
+    }
+
+    // Yangi ID bilan allaqachon mavjud bo'lganligini tekshirish
+    const existingMessage = await Message.findOne({ id: newId });
+    if (existingMessage && existingMessage._id.toString() !== message._id.toString()) {
+      return res.status(400).json({ message: "Bu ID allaqachon ishlatilgan!" });
+    }
+
+    // Id ni o'zgartirish
+    message.id = newId;
+    await message.save();
+
+    // Qolgan id'larni qayta tartiblash (agar kerak bo'lsa)
+    const remainingMessages = await Message.find({ id: { $gt: parseInt(id) } }).sort({ id: 1 });
+    for (let i = 0; i < remainingMessages.length; i++) {
+      remainingMessages[i].id = parseInt(id) + i + 1;
+      await remainingMessages[i].save();
+    }
+
+    res.status(200).json(message);
+    console.log("ID o'zgartirildi:", { oldId: id, newId });
+  } catch (error) {
+    console.error("ID o'zgartirishda xato:", error.message, error.stack);
+    res.status(500).json({ message: "ID o'zgartirishda xato yuz berdi!" });
   }
 });
 
