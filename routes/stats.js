@@ -1,10 +1,12 @@
 const express = require("express");
+const axios = require("axios");
 const User = require("../models/user");
+const adminAuth = require("../middleware/adminAuth");
 
 const router = express.Router();
 
-// Statistika olish
-router.get("/", async (req, res) => {
+// Statistika olish (admin only)
+router.get("/", adminAuth, async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalPresses = await User.aggregate([
@@ -25,8 +27,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Maxsus push xabarnoma yuborish
-router.post("/send-push", async (req, res) => {
+// Maxsus push xabarnoma yuborish (admin only)
+router.post("/send-push", adminAuth, async (req, res) => {
   const { title, body } = req.body;
   try {
     console.log("POST /send-push:", { title, body });

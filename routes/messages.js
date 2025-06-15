@@ -2,10 +2,11 @@ const express = require("express");
 const axios = require("axios");
 const Message = require("../models/message");
 const User = require("../models/user");
+const adminAuth = require("../middleware/adminAuth");
 
 const router = express.Router();
 
-// Barcha xabarlarni olish
+// Barcha xabarlarni olish (public)
 router.get("/", async (req, res) => {
   try {
     const messages = await Message.find().sort({ id: 1 });
@@ -16,8 +17,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Yangi xabar qo'shish va push xabarnoma yuborish
-router.post("/", async (req, res) => {
+// Yangi xabar qo'shish va push xabarnoma yuborish (admin only)
+router.post("/", adminAuth, async (req, res) => {
   const { text, buttonSize, showYellowButton, showRedButton, showGreenButton, buttonCount, yellowButtonText, yellowButtonTexts, greenButtonTexts } = req.body;
   try {
     if (!text) {
@@ -82,7 +83,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Yagona xabarni olish
+// Yagona xabarni olish (public)
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -98,8 +99,8 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Maxsus matn qo'shish
-router.post("/:id/specialText", async (req, res) => {
+// Maxsus matn qo'shish (admin only)
+router.post("/:id/specialText", adminAuth, async (req, res) => {
   const { id } = req.params;
   const { specialText, startCount, endCount } = req.body;
 
@@ -132,8 +133,8 @@ router.post("/:id/specialText", async (req, res) => {
   }
 });
 
-// Maxsus matn yangilash
-router.put("/:id/specialText/:specialTextId", async (req, res) => {
+// Maxsus matn yangilash (admin only)
+router.put("/:id/specialText/:specialTextId", adminAuth, async (req, res) => {
   const { id, specialTextId } = req.params;
   const { startCount, endCount, specialText } = req.body;
 
@@ -163,8 +164,8 @@ router.put("/:id/specialText/:specialTextId", async (req, res) => {
   }
 });
 
-// Maxsus matn o'chirish
-router.delete("/:id/specialText/:specialTextId", async (req, res) => {
+// Maxsus matn o'chirish (admin only)
+router.delete("/:id/specialText/:specialTextId", adminAuth, async (req, res) => {
   const { id, specialTextId } = req.params;
 
   try {
@@ -194,8 +195,8 @@ router.delete("/:id/specialText/:specialTextId", async (req, res) => {
   }
 });
 
-// Xabarni yangilash
-router.put("/:id", async (req, res) => {
+// Xabarni yangilash (admin only)
+router.put("/:id", adminAuth, async (req, res) => {
   const { id } = req.params;
   const { maxPressCount, buttonSize, showYellowButton, showRedButton, showGreenButton, buttonCount, yellowButtonText, yellowButtonTexts, greenButtonTexts } = req.body;
 
@@ -224,8 +225,8 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Xabarni o'chirish
-router.delete("/:id", async (req, res) => {
+// Xabarni o'chirish (admin only)
+router.delete("/:id", adminAuth, async (req, res) => {
   const { id } = req.params;
   try {
     const message = await Message.findOneAndDelete({ id: parseInt(id) });
@@ -246,8 +247,8 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// Xabar ID o'zgartirish
-router.put("/:id/change-id", async (req, res) => {
+// Xabar ID o'zgartirish (admin only)
+router.put("/:id/change-id", adminAuth, async (req, res) => {
   const { id } = req.params;
   const { newId } = req.body;
 

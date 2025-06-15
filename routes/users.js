@@ -1,5 +1,6 @@
 const express = require("express");
 const User = require("../models/user");
+// const adminAuth = require("../middleware/adminAuth"); // Uncomment if POST routes need protection
 
 const router = express.Router();
 

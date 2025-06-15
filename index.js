@@ -4,6 +4,7 @@ const connectDB = require("./config/db");
 const messageRoutes = require("./routes/messages");
 const userRoutes = require("./routes/users");
 const statsRoutes = require("./routes/stats");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(cors());
 app.use("/messages", messageRoutes);
 app.use("/", userRoutes);
 app.use("/stats", statsRoutes);
+app.use("/admin", adminRoutes);
 
 // Database connection and server start
 const PORT = process.env.PORT || 3000;
